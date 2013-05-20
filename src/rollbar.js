@@ -400,32 +400,32 @@
       return xmlhttp;
     },
     
-    push: function(args, extraParams, callback) {
-      if (typeof extraParams == 'function') {
-        callback = extraParams;
-        extraParams = null;
+    push: function(args, customData, callback) {
+      if (typeof customData == 'function') {
+        callback = customData;
+        customData = null;
       }
 
 
       if (args instanceof Error) {
-        this.handleError(args, extraParams, callback);
+        this.handleError(args, customData, callback);
       } else if (typeof args == 'object' && 
         !args.hasOwnProperty('msg') &&
         args.hasOwnProperty(0) && args.hasOwnProperty(1) && args.hasOwnProperty(2)) {
         // 'args instanceof Array' for above check doesn't work.
-        this.handleUncaughtError(args[0], args[1], args[2], extraParams);
+        this.handleUncaughtError(args[0], args[1], args[2], customData);
       } else if (typeof args == 'object' &&
         args.hasOwnProperty("_t") &&
         args['_t'] === 'uncaught') {
-        this.handleUncaughtError(args.e, args.u, args.l, extraParams);
+        this.handleUncaughtError(args.e, args.u, args.l, customData);
       } else if (typeof args == 'object' &&
         args.hasOwnProperty("_t") &&
         args['_t'] === 'trace') {
-        this.handleErrorTrace(args, extraParams, callback);
+        this.handleErrorTrace(args, customData, callback);
       } else if (typeof args == 'object') {
         this.handleMessage(args, callback);
       } else {
-        this.handleMessage({level: 'info', msg: args.toString()}, extraParams, callback);
+        this.handleMessage({level: 'info', msg: args.toString()}, customData, callback);
       }
     },
 
@@ -433,7 +433,7 @@
     // msg: the message string
     // level: one of ['critical', 'error', 'warning', 'info', 'debug'] (defaults to 'info')
     // can also contain any additional arbitrary keys, which will be included as well.
-    handleMessage: function(obj, extraParams, callback) {
+    handleMessage: function(obj, customData, callback) {
       if (!obj.msg) {
         var errorMsg = "Object argument must contain the property 'msg'";
         this.logger(errorMsg);
@@ -466,15 +466,15 @@
       if (callback) {
         item.callback = callback;
       }
-      if (extraParams) {
-        item.extraParams = extraParams;
+      if (customData) {
+        item.custom = customData;
       }
       
       this.items.push(item);
       this.handleEvents();
     },
     
-    handleUncaughtError: function(errMsg, url, lineNo, extraParams) {
+    handleUncaughtError: function(errMsg, url, lineNo, customData) {
       errMsg = errMsg || 'uncaught exception';
       url = url || '(unknown)';
       lineNo = lineNo || 0;
@@ -506,10 +506,10 @@
           message: errMsg
         },
         frames: frames
-      }, extraParams, null);
+      }, customData, null);
     },
     
-    handleError: function(err, extraParams, callback) {
+    handleError: function(err, customData, callback) {
       var className = err.name || typeof err;
       var message = err.message || err.toString();
       var trace = {
@@ -529,9 +529,9 @@
 
       if (!trace.frames) {
         // no frames - not useful as a trace. just report as a message.
-        this.handleMessage({msg: className + ': ' + message, level: 'error'}, extraParams, callback);
+        this.handleMessage({msg: className + ': ' + message, level: 'error'}, customData, callback);
       } else {
-        this._pushTrace(trace, extraParams, callback);
+        this._pushTrace(trace, customData, callback);
       }
     },
     
@@ -547,7 +547,7 @@
     * _rollbar.push({_t: 'trace', trace: trace});
     *
     */
-    handleErrorTrace: function(obj, extraParams, callback) {
+    handleErrorTrace: function(obj, customData, callback) {
       if (!obj.trace) {
         var errorMsg = "Trace objects must contain the property 'trace'";
         this.logger(errorMsg);
@@ -557,19 +557,19 @@
         return;
       }
 
-      this._pushTrace(obj.trace, extraParams, callback);
+      this._pushTrace(obj.trace, customData, callback);
     },
 
     /*
     * Pushes a trace object onto the queue and calls handleEvents()
     */
-    _pushTrace: function(trace, extraParams, callback) {
+    _pushTrace: function(trace, customData, callback) {
       var item = {body: {trace: trace}};
       if (callback) {
         item.callback = callback;
       }
-      if (extraParams) {
-        item.extraParams = extraParams;
+      if (customData) {
+        item.custom = customData;
       }
 
       this.items.push(item);
@@ -728,10 +728,6 @@
       var path;
       var target;
 
-      // remove per-item extraParams so we can mix it in later
-      var itemExtraParams = item.extraParams;
-      delete item.extraParams;
-
 
       // grab body, any other params set
       for (k in item) {
@@ -756,25 +752,6 @@
 
           // now save
           target[path[path.length - 1]] = value;
-        }
-      }
-
-      // merge in per-item params
-      if (itemExtraParams) {
-        for (k in itemExtraParams) {
-          if (itemExtraParams.hasOwnProperty(k)) {
-            value = itemExtraParams[k];
-            path = k.split(".");
-            
-            // traverse the path to second-to-last elem
-            target = payload.data;
-            for (i = 0; i < path.length - 1; i++) {
-              target = target[path[i]];
-            }
-
-            // now save
-            target[path[path.length - 1]] = value;
-          }
         }
       }
 
